@@ -1047,24 +1047,23 @@ class PauliwordOp:
         # x_int = (self.X_block @ binary_int_array).reshape(-1, 1)
         # z_int = (self.Z_block @ binary_int_array).reshape(-1, 1)
 
-        x_int = binary_array_to_int(self.X_block).reshape(-1, 1)
-        z_int = binary_array_to_int(self.Z_block).reshape(-1, 1)
+        x_int = binary_array_to_int(self.X_block)
+        z_int = binary_array_to_int(self.Z_block)
 
-        Y_number = np.sum(np.bitwise_and(self.X_block, self.Z_block).astype(int), axis=1)
+        Y_number = np.count_nonzero(self.X_block & self.Z_block, axis=1)
         global_phase = (-1j) ** Y_number
 
         dimension = 2 ** self.n_qubits
-        row_ind = np.repeat(np.arange(dimension).reshape(1, -1), self.X_block.shape[0], axis=0)
-        col_ind = np.bitwise_xor(row_ind, x_int)
+        row_ind = np.repeat(np.arange(dimension), self.X_block.shape[0])
+        col_ind = row_ind ^ x_int[:, np.newaxis]
 
-        row_inds_and_Zint = np.bitwise_and(row_ind, z_int)
-        vals = global_phase.reshape(-1, 1) * (-1) ** (
-                    count1_in_int_bitstring(row_inds_and_Zint) % 2)  # .astype(complex))
+        row_inds_and_Zint = row_ind & z_int[:, np.newaxis]
+        vals = global_phase * (-1) ** (np.count_nonzero(row_inds_and_Zint, axis=1) % 2)
 
-        values_and_coeff = np.einsum('ij,i->ij', vals, self.coeff_vec)
+        values_and_coeff = vals[:, np.newaxis] * self.coeff_vec
 
         sparse_matrix = csr_matrix(
-            (values_and_coeff.flatten(), (row_ind.flatten(), col_ind.flatten())),
+            (values_and_coeff.flatten(), (row_ind, col_ind)),
             shape=(dimension, dimension),
             dtype=complex
         )
